@@ -22,6 +22,13 @@ public class OrderCreatedHandler {
     )
     public void listen(OrderCreatedEvent payload) {
         log.info("OrderCreatedHandler received payload: {}", payload);
-        dispatchService.process(payload);
+        try {
+            dispatchService.process(payload);
+        } catch (Exception e) {
+            log.error("OrderCreatedHandler Processing failure: ", e);
+            if (e.getCause() instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
