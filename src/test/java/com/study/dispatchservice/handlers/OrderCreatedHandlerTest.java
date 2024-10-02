@@ -1,6 +1,7 @@
 package com.study.dispatchservice.handlers;
 
 import com.study.dispatchservice.services.DispatchService;
+import com.study.dispatchservice.utils.EventUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,10 +21,10 @@ class OrderCreatedHandlerTest {
 
     @Test
     void listen() {
-        final String payload = "payload";
+        var testEvent = EventUtils.randomOrderCreatedEvent();
 
-        orderCreatedHandler.listen(payload);
+        orderCreatedHandler.listen(testEvent);
 
-        verify(dispatchServiceMock).process(payload);
+        verify(dispatchServiceMock).process(testEvent);
     }
 }

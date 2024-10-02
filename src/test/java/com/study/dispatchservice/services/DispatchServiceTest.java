@@ -1,5 +1,6 @@
 package com.study.dispatchservice.services;
 
+import com.study.dispatchservice.utils.EventUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,7 @@ class DispatchServiceTest {
 
     @Test
     void process() {
-        dispatchService.process("payload");
+        var testEvent = EventUtils.randomOrderCreatedEvent();
+        dispatchService.process(testEvent);
     }
 }

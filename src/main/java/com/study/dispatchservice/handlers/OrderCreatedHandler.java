@@ -1,5 +1,6 @@
 package com.study.dispatchservice.handlers;
 
+import com.study.dispatchservice.messages.OrderCreatedEvent;
 import com.study.dispatchservice.services.DispatchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,7 @@ public class OrderCreatedHandler {
             topics = "order.created",
             groupId = "dispatch.order.created.consumer"
     )
-    public void listen(String payload) {
+    public void listen(OrderCreatedEvent payload) {
         log.info("OrderCreatedHandler received payload: {}", payload);
         dispatchService.process(payload);
     }
