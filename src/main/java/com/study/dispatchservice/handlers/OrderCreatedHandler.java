@@ -12,11 +12,13 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OrderCreatedHandler {
 
+    public static final String ORDER_CREATED_TOPIC = "order.created";
+
     private final DispatchService dispatchService;
 
     @KafkaListener(
             id = "orderConsumerClient",
-            topics = "order.created",
+            topics = ORDER_CREATED_TOPIC,
             groupId = "dispatch.order.created.consumer",
             containerFactory = "kafkaListenerContainerFactory"
     )

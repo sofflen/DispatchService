@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class DispatchService {
 
-    private static final String ORDER_DISPATCHED_TOPIC = "order.dispatched";
-    private static final String DISPATCH_TRACKING_TOPIC = "dispatch.tracking";
+    public static final String ORDER_DISPATCHED_TOPIC = "order.dispatched";
+    public static final String DISPATCH_TRACKING_TOPIC = "dispatch.tracking";
 
     private final KafkaTemplate<String, Object> kafkaProducer;
 
@@ -31,5 +31,6 @@ public class DispatchService {
 
         log.info("Preparing dispatch: {}", dispatchTrackingEvent);
         kafkaProducer.send(DISPATCH_TRACKING_TOPIC, dispatchTrackingEvent).get();
+        log.info("Dispatch tracking event sent: {}", dispatchTrackingEvent);
     }
 }
