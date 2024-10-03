@@ -1,5 +1,6 @@
 package com.study.dispatchservice.services;
 
+import com.study.dispatchservice.messages.DispatchPreparingEvent;
 import com.study.dispatchservice.messages.OrderDispatchedEvent;
 import com.study.dispatchservice.utils.EventUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,15 +33,33 @@ class DispatchServiceTest {
     void process_success() throws Exception {
         when(kafkaTemplateMock.send(anyString(), any(OrderDispatchedEvent.class)))
                 .thenReturn(mock(CompletableFuture.class));
+        when(kafkaTemplateMock.send(anyString(), any(DispatchPreparingEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
 
         var testEvent = EventUtils.randomOrderCreatedEvent();
         dispatchService.process(testEvent);
 
         verify(kafkaTemplateMock).send(eq("order.dispatched"), any(OrderDispatchedEvent.class));
+        verify(kafkaTemplateMock).send(eq("dispatch.tracking"), any(DispatchPreparingEvent.class));
     }
 
     @Test
-    void process_throwsException() {
+    void process_throwsExceptionOnDispatchPreparingEvent() {
+        when(kafkaTemplateMock.send(anyString(), any(OrderDispatchedEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
+        when(kafkaTemplateMock.send(anyString(), any(DispatchPreparingEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
+        doThrow(new RuntimeException()).when(kafkaTemplateMock).send(anyString(), any(DispatchPreparingEvent.class));
+
+        var testEvent = EventUtils.randomOrderCreatedEvent();
+
+        assertThrows(RuntimeException.class, () -> dispatchService.process(testEvent));
+        verify(kafkaTemplateMock).send(eq("order.dispatched"), any(OrderDispatchedEvent.class));
+        verify(kafkaTemplateMock).send(eq("dispatch.tracking"), any(DispatchPreparingEvent.class));
+    }
+
+    @Test
+    void process_throwsExceptionOnOrderDispatchedEvent() {
         when(kafkaTemplateMock.send(anyString(), any(OrderDispatchedEvent.class)))
                 .thenReturn(mock(CompletableFuture.class));
         doThrow(new RuntimeException()).when(kafkaTemplateMock).send(anyString(), any(OrderDispatchedEvent.class));

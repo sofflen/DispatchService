@@ -11,6 +11,6 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class OrderDispatchedEvent {
+public class DispatchPreparingEvent {
     private UUID orderId;
 }
