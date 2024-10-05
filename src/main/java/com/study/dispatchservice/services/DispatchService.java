@@ -21,7 +21,7 @@ public class DispatchService {
 
     private final KafkaTemplate<String, Object> kafkaProducer;
 
-    public void process(OrderCreatedEvent orderCreatedEvent) throws Exception {
+    public void process(String key, OrderCreatedEvent orderCreatedEvent) throws Exception {
         log.info("Processing order created event: {}", orderCreatedEvent);
 
         var orderId = orderCreatedEvent.getOrderId();
@@ -31,13 +31,14 @@ public class DispatchService {
                 .notes("Dispatched: " + orderCreatedEvent.getItem())
                 .build();
 
-        kafkaProducer.send(ORDER_DISPATCHED_TOPIC, orderDispatchedEvent).get();
-        log.info("Order dispatched event sent: {} - processed by id: {}", orderDispatchedEvent, APPLICATION_ID);
+        kafkaProducer.send(ORDER_DISPATCHED_TOPIC, key, orderDispatchedEvent).get();
+        log.info("Order dispatched event sent: {}, key: {} - processed by id: {}",
+                orderDispatchedEvent, key, APPLICATION_ID);
 
         var dispatchTrackingEvent = new DispatchPreparingEvent(orderId);
 
         log.info("Preparing dispatch: {}", dispatchTrackingEvent);
-        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, dispatchTrackingEvent).get();
-        log.info("Dispatch tracking event sent: {}", dispatchTrackingEvent);
+        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, key, dispatchTrackingEvent).get();
+        log.info("Dispatch tracking event sent: {}, key: {}", dispatchTrackingEvent, key);
     }
 }

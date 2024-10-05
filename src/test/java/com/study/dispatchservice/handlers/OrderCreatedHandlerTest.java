@@ -5,6 +5,8 @@ import com.study.dispatchservice.utils.EventUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -22,20 +24,22 @@ class OrderCreatedHandlerTest {
 
     @Test
     void listen_success() throws Exception {
+        String key = UUID.randomUUID().toString();
         var testEvent = EventUtils.randomOrderCreatedEvent();
 
-        orderCreatedHandler.listen(testEvent);
+        orderCreatedHandler.listen(0, key, testEvent);
 
-        verify(dispatchServiceMock).process(testEvent);
+        verify(dispatchServiceMock).process(key, testEvent);
     }
 
     @Test
     void listen_catchesException() throws Exception {
+        String key = UUID.randomUUID().toString();
         var testEvent = EventUtils.randomOrderCreatedEvent();
-        doThrow(new RuntimeException()).when(dispatchServiceMock).process(testEvent);
+        doThrow(new RuntimeException()).when(dispatchServiceMock).process(key, testEvent);
 
-        orderCreatedHandler.listen(testEvent);
+        orderCreatedHandler.listen(0, key, testEvent);
 
-        verify(dispatchServiceMock).process(testEvent);
+        verify(dispatchServiceMock).process(key, testEvent);
     }
 }
