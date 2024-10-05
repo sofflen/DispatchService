@@ -13,4 +13,6 @@ import java.util.UUID;
 @NoArgsConstructor
 public class OrderDispatchedEvent {
     private UUID orderId;
+    private UUID processedById;
+    private String notes;
 }

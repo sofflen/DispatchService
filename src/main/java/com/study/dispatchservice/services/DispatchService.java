@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -15,6 +17,7 @@ public class DispatchService {
 
     public static final String ORDER_DISPATCHED_TOPIC = "order.dispatched";
     public static final String DISPATCH_TRACKING_TOPIC = "dispatch.tracking";
+    public static final UUID APPLICATION_ID = UUID.randomUUID();
 
     private final KafkaTemplate<String, Object> kafkaProducer;
 
@@ -22,10 +25,14 @@ public class DispatchService {
         log.info("Processing order created event: {}", orderCreatedEvent);
 
         var orderId = orderCreatedEvent.getOrderId();
-        var orderDispatchedEvent = new OrderDispatchedEvent(orderId);
+        var orderDispatchedEvent = OrderDispatchedEvent.builder()
+                .orderId(orderId)
+                .processedById(APPLICATION_ID)
+                .notes("Dispatched: " + orderCreatedEvent.getItem())
+                .build();
 
         kafkaProducer.send(ORDER_DISPATCHED_TOPIC, orderDispatchedEvent).get();
-        log.info("Order dispatched event sent: {}", orderDispatchedEvent);
+        log.info("Order dispatched event sent: {} - processed by id: {}", orderDispatchedEvent, APPLICATION_ID);
 
         var dispatchTrackingEvent = new DispatchPreparingEvent(orderId);
 
