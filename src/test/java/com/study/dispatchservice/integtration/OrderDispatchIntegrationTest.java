@@ -49,6 +49,8 @@ import static org.hamcrest.Matchers.notNullValue;
 @Slf4j
 class OrderDispatchIntegrationTest {
 
+    private static final String ORDER_CREATED_DLT_TOPIC = "order.created.DLT";
+
     @Autowired
     private KafkaTestListener testListener;
     @Autowired
@@ -60,15 +62,18 @@ class OrderDispatchIntegrationTest {
 
     private String testKey;
     private OrderCreatedEvent testOrderCreatedEvent;
+    private String testItem;
 
     @BeforeEach
     void setUp() {
         testKey = UUID.randomUUID().toString();
         testOrderCreatedEvent = EventUtils.randomOrderCreatedEvent();
+        testItem = testOrderCreatedEvent.getItem();
 
         testListener.orderDispatchCounter.set(0);
         testListener.dispatchPreparingCounter.set(0);
         testListener.dispatchCompletedCounter.set(0);
+        testListener.orderCreatedDLTCounter.set(0);
 
         WiremockUtils.reset();
 
@@ -79,7 +84,7 @@ class OrderDispatchIntegrationTest {
 
     @Test
     void testOrderDispatch_Success() throws Exception {
-        stubWiremock("/api/stock?item=" + testOrderCreatedEvent.getItem(), 200, "true");
+        stubWiremock("/api/stock?item=" + testItem, 200, "true");
 
         kafkaTemplate.send(ORDER_CREATED_TOPIC, testKey, testOrderCreatedEvent).get();
 
@@ -89,20 +94,19 @@ class OrderDispatchIntegrationTest {
                 .until(testListener.dispatchPreparingCounter::get, equalTo(1));
         await().atMost(1, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
                 .until(testListener.dispatchCompletedCounter::get, equalTo(1));
+
+        assertThat(testListener.orderCreatedDLTCounter.get(), equalTo(0));
     }
 
 
     @Test
     void testOrderDispatch_NotRetryableException() throws Exception {
-        stubWiremock("/api/stock?item=" + testOrderCreatedEvent.getItem(), 400, "Bad Request");
+        stubWiremock("/api/stock?item=" + testItem, 400, "Bad Request");
 
         kafkaTemplate.send(ORDER_CREATED_TOPIC, testKey, testOrderCreatedEvent).get();
 
-        await().during(3, TimeUnit.SECONDS)
-                .atMost(4, TimeUnit.SECONDS)
-                .until(() -> testListener.orderDispatchCounter.get() == 0
-                        && testListener.dispatchPreparingCounter.get() == 0
-                        && testListener.dispatchCompletedCounter.get() == 0);
+        await().atMost(3, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
+                .until(testListener.orderCreatedDLTCounter::get, equalTo(1));
 
         assertThat(testListener.orderDispatchCounter.get(), equalTo(0));
         assertThat(testListener.dispatchPreparingCounter.get(), equalTo(0));
@@ -111,10 +115,10 @@ class OrderDispatchIntegrationTest {
 
     @Test
     void testOrderDispatch_RetryThenSuccess() throws Exception {
-        stubWiremock("/api/stock?item=" + testOrderCreatedEvent.getItem(), 503, "Service Unavailable",
-                "Fail Once", Scenario.STARTED,"Succeed next time");
-        stubWiremock("/api/stock?item=" + testOrderCreatedEvent.getItem(), 200, "true",
-                "Fail Once", "Succeed next time","Succeed next time");
+        stubWiremock("/api/stock?item=" + testItem, 503, "Service Unavailable",
+                "Fail Once", Scenario.STARTED, "Succeed next time");
+        stubWiremock("/api/stock?item=" + testItem, 200, "true",
+                "Fail Once", "Succeed next time", "Succeed next time");
 
         kafkaTemplate.send(ORDER_CREATED_TOPIC, testKey, testOrderCreatedEvent).get();
 
@@ -124,6 +128,22 @@ class OrderDispatchIntegrationTest {
                 .until(testListener.dispatchPreparingCounter::get, equalTo(1));
         await().atMost(1, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
                 .until(testListener.dispatchCompletedCounter::get, equalTo(1));
+
+        assertThat(testListener.orderCreatedDLTCounter.get(), equalTo(0));
+    }
+
+    @Test
+    void testOrderDispatch_RetryUntilFailure() throws Exception {
+        stubWiremock("/api/stock?item=" + testItem, 503, "Service Unavailable");
+
+        kafkaTemplate.send(ORDER_CREATED_TOPIC, testKey, testOrderCreatedEvent).get();
+
+        await().atMost(5, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
+                .until(testListener.orderCreatedDLTCounter::get, equalTo(1));
+
+        assertThat(testListener.orderDispatchCounter.get(), equalTo(0));
+        assertThat(testListener.dispatchPreparingCounter.get(), equalTo(0));
+        assertThat(testListener.dispatchCompletedCounter.get(), equalTo(0));
     }
 
 
@@ -139,11 +159,13 @@ class OrderDispatchIntegrationTest {
     /**
      * Use this receiver to consume message from the outbound topics
      */
-    @KafkaListener(groupId = "KafkaIntegrationTest", topics = {ORDER_DISPATCHED_TOPIC, DISPATCH_TRACKING_TOPIC})
+    @KafkaListener(groupId = "KafkaIntegrationTest", topics =
+            {ORDER_DISPATCHED_TOPIC, DISPATCH_TRACKING_TOPIC, ORDER_CREATED_DLT_TOPIC})
     static class KafkaTestListener {
         AtomicInteger orderDispatchCounter = new AtomicInteger();
         AtomicInteger dispatchPreparingCounter = new AtomicInteger();
         AtomicInteger dispatchCompletedCounter = new AtomicInteger();
+        AtomicInteger orderCreatedDLTCounter = new AtomicInteger();
 
         @KafkaHandler
         void receiveOrderDispatchedEvent(@Header(KafkaHeaders.RECEIVED_KEY) String key,
@@ -170,6 +192,15 @@ class OrderDispatchIntegrationTest {
             assertThat(key, notNullValue());
             assertThat(payload, notNullValue());
             dispatchCompletedCounter.incrementAndGet();
+        }
+
+        @KafkaHandler
+        void receiveOrderCreatedDLTEvent(@Header(KafkaHeaders.RECEIVED_KEY) String key,
+                                         @Payload OrderCreatedEvent payload) {
+            log.info("Test: Received order created DLT event: {}, key: {}", payload, key);
+            assertThat(key, notNullValue());
+            assertThat(payload, notNullValue());
+            orderCreatedDLTCounter.incrementAndGet();
         }
     }
 }
