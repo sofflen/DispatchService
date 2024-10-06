@@ -1,5 +1,6 @@
 package com.study.dispatchservice.services;
 
+import com.study.dispatchservice.messages.DispatchCompletedEvent;
 import com.study.dispatchservice.messages.DispatchPreparingEvent;
 import com.study.dispatchservice.messages.OrderCreatedEvent;
 import com.study.dispatchservice.messages.OrderDispatchedEvent;
@@ -18,6 +19,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class DispatchServiceTest {
@@ -41,11 +43,25 @@ class DispatchServiceTest {
                 .thenReturn(mock(CompletableFuture.class));
         when(kafkaTemplateMock.send(anyString(), anyString(), any(DispatchPreparingEvent.class)))
                 .thenReturn(mock(CompletableFuture.class));
+        when(kafkaTemplateMock.send(anyString(), anyString(), any(DispatchCompletedEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
 
         dispatchService.process(testKey, testOrderCreatedEvent);
 
         verify(kafkaTemplateMock).send(eq("order.dispatched"), eq(testKey), any(OrderDispatchedEvent.class));
         verify(kafkaTemplateMock).send(eq("dispatch.tracking"), eq(testKey), any(DispatchPreparingEvent.class));
+        verify(kafkaTemplateMock).send(eq("dispatch.tracking"), eq(testKey), any(DispatchCompletedEvent.class));
+    }
+
+    @Test
+    void process_throwsExceptionOnOrderDispatchedEvent() {
+        when(kafkaTemplateMock.send(anyString(), anyString(), any(OrderDispatchedEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
+        doThrow(new RuntimeException()).when(kafkaTemplateMock).send(anyString(), anyString(), any(OrderDispatchedEvent.class));
+
+        assertThrows(RuntimeException.class, () -> dispatchService.process(testKey, testOrderCreatedEvent));
+        verify(kafkaTemplateMock).send(eq("order.dispatched"), eq(testKey), any(OrderDispatchedEvent.class));
+        verifyNoMoreInteractions(kafkaTemplateMock);
     }
 
     @Test
@@ -59,15 +75,22 @@ class DispatchServiceTest {
         assertThrows(RuntimeException.class, () -> dispatchService.process(testKey, testOrderCreatedEvent));
         verify(kafkaTemplateMock).send(eq("order.dispatched"), eq(testKey), any(OrderDispatchedEvent.class));
         verify(kafkaTemplateMock).send(eq("dispatch.tracking"), eq(testKey), any(DispatchPreparingEvent.class));
+        verifyNoMoreInteractions(kafkaTemplateMock);
     }
 
     @Test
-    void process_throwsExceptionOnOrderDispatchedEvent() {
+    void process_throwsExceptionOnDispatchCompletedEvent() {
         when(kafkaTemplateMock.send(anyString(), anyString(), any(OrderDispatchedEvent.class)))
                 .thenReturn(mock(CompletableFuture.class));
-        doThrow(new RuntimeException()).when(kafkaTemplateMock).send(anyString(), anyString(), any(OrderDispatchedEvent.class));
+        when(kafkaTemplateMock.send(anyString(), anyString(), any(DispatchPreparingEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
+        when(kafkaTemplateMock.send(anyString(), anyString(), any(DispatchCompletedEvent.class)))
+                .thenReturn(mock(CompletableFuture.class));
+        doThrow(new RuntimeException()).when(kafkaTemplateMock).send(anyString(), anyString(), any(DispatchCompletedEvent.class));
 
         assertThrows(RuntimeException.class, () -> dispatchService.process(testKey, testOrderCreatedEvent));
         verify(kafkaTemplateMock).send(eq("order.dispatched"), eq(testKey), any(OrderDispatchedEvent.class));
+        verify(kafkaTemplateMock).send(eq("dispatch.tracking"), eq(testKey), any(DispatchPreparingEvent.class));
+        verify(kafkaTemplateMock).send(eq("dispatch.tracking"), eq(testKey), any(DispatchCompletedEvent.class));
     }
 }

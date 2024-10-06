@@ -1,5 +1,6 @@
 package com.study.dispatchservice.services;
 
+import com.study.dispatchservice.messages.DispatchCompletedEvent;
 import com.study.dispatchservice.messages.DispatchPreparingEvent;
 import com.study.dispatchservice.messages.OrderCreatedEvent;
 import com.study.dispatchservice.messages.OrderDispatchedEvent;
@@ -8,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -35,10 +37,20 @@ public class DispatchService {
         log.info("Order dispatched event sent: {}, key: {} - processed by id: {}",
                 orderDispatchedEvent, key, APPLICATION_ID);
 
-        var dispatchTrackingEvent = new DispatchPreparingEvent(orderId);
+        var dispatchPreparingEvent = new DispatchPreparingEvent(orderId);
 
-        log.info("Preparing dispatch: {}", dispatchTrackingEvent);
-        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, key, dispatchTrackingEvent).get();
-        log.info("Dispatch tracking event sent: {}, key: {}", dispatchTrackingEvent, key);
+        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, key, dispatchPreparingEvent).get();
+        log.info("Dispatch tracking event sent: {}, key: {}", dispatchPreparingEvent, key);
+
+        //To mimic some business logic before dispatch is completed
+        Thread.sleep(1000);
+
+        var dispatchCompletedEvent = DispatchCompletedEvent.builder()
+                .orderId(orderId)
+                .date(LocalDateTime.now().toString())
+                .build();
+
+        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, key, dispatchCompletedEvent).get();
+        log.info("Dispatch is completed: {}, key: {}", dispatchCompletedEvent, key);
     }
 }

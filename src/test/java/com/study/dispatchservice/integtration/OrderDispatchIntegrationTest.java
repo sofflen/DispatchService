@@ -1,5 +1,6 @@
 package com.study.dispatchservice.integtration;
 
+import com.study.dispatchservice.messages.DispatchCompletedEvent;
 import com.study.dispatchservice.messages.DispatchPreparingEvent;
 import com.study.dispatchservice.messages.OrderDispatchedEvent;
 import com.study.dispatchservice.utils.EventUtils;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -54,9 +56,11 @@ class OrderDispatchIntegrationTest {
     void setUp() {
         testListener.orderDispatchCounter.set(0);
         testListener.dispatchPreparingCounter.set(0);
+        testListener.dispatchCompletedCounter.set(0);
 
         registry.getListenerContainers().forEach(container ->
-                ContainerTestUtils.waitForAssignment(container, embeddedKafkaBroker.getPartitionsPerTopic()));
+                ContainerTestUtils.waitForAssignment(container,
+                        container.getContainerProperties().getTopics().length * embeddedKafkaBroker.getPartitionsPerTopic()));
     }
 
     @Test
@@ -70,6 +74,8 @@ class OrderDispatchIntegrationTest {
                 .until(testListener.orderDispatchCounter::get, equalTo(1));
         await().atMost(3, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
                 .until(testListener.dispatchPreparingCounter::get, equalTo(1));
+        await().atMost(5, TimeUnit.SECONDS).pollDelay(100, TimeUnit.MILLISECONDS)
+                .until(testListener.dispatchCompletedCounter::get, equalTo(1));
     }
 
     @TestConfiguration
@@ -84,11 +90,13 @@ class OrderDispatchIntegrationTest {
     /**
      * Use this receiver to consume message from the outbound topics
      */
+    @KafkaListener(groupId = "KafkaIntegrationTest", topics = {ORDER_DISPATCHED_TOPIC, DISPATCH_TRACKING_TOPIC})
     static class KafkaTestListener {
-        AtomicInteger dispatchPreparingCounter = new AtomicInteger();
         AtomicInteger orderDispatchCounter = new AtomicInteger();
+        AtomicInteger dispatchPreparingCounter = new AtomicInteger();
+        AtomicInteger dispatchCompletedCounter = new AtomicInteger();
 
-        @KafkaListener(groupId = "KafkaIntegrationTest", topics = ORDER_DISPATCHED_TOPIC)
+        @KafkaHandler
         void receiveOrderDispatchedEvent(@Header(KafkaHeaders.RECEIVED_KEY) String key,
                                          @Payload OrderDispatchedEvent payload) {
             log.info("Test: Received order dispatched event: {}, key: {}", payload, key);
@@ -97,13 +105,22 @@ class OrderDispatchIntegrationTest {
             orderDispatchCounter.incrementAndGet();
         }
 
-        @KafkaListener(groupId = "KafkaIntegrationTest", topics = DISPATCH_TRACKING_TOPIC)
+        @KafkaHandler
         void receiveDispatchPreparingEvent(@Header(KafkaHeaders.RECEIVED_KEY) String key,
                                            @Payload DispatchPreparingEvent payload) {
             log.info("Test: Received dispatch preparing event: {}, key: {}", payload, key);
             assertThat(key, notNullValue());
             assertThat(payload, notNullValue());
             dispatchPreparingCounter.incrementAndGet();
+        }
+
+        @KafkaHandler
+        void receiveDispatchCompletedEvent(@Header(KafkaHeaders.RECEIVED_KEY) String key,
+                                           @Payload DispatchCompletedEvent payload) {
+            log.info("Test: Received dispatch completed event: {}, key: {}", payload, key);
+            assertThat(key, notNullValue());
+            assertThat(payload, notNullValue());
+            dispatchCompletedCounter.incrementAndGet();
         }
     }
 }
