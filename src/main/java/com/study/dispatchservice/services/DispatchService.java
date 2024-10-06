@@ -1,5 +1,6 @@
 package com.study.dispatchservice.services;
 
+import com.study.dispatchservice.client.StockServiceClient;
 import com.study.dispatchservice.messages.DispatchCompletedEvent;
 import com.study.dispatchservice.messages.DispatchPreparingEvent;
 import com.study.dispatchservice.messages.OrderCreatedEvent;
@@ -22,9 +23,17 @@ public class DispatchService {
     public static final UUID APPLICATION_ID = UUID.randomUUID();
 
     private final KafkaTemplate<String, Object> kafkaProducer;
+    private final StockServiceClient stockServiceClient;
 
     public void process(String key, OrderCreatedEvent orderCreatedEvent) throws Exception {
         log.info("Processing order created event: {}", orderCreatedEvent);
+
+        String available = stockServiceClient.checkAvailability(orderCreatedEvent.getItem());
+
+        if (!Boolean.parseBoolean(available)) {
+            log.warn("Item '{}' is not available", orderCreatedEvent.getItem());
+            return;
+        }
 
         var orderId = orderCreatedEvent.getOrderId();
         var orderDispatchedEvent = OrderDispatchedEvent.builder()

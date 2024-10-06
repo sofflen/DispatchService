@@ -1,5 +1,7 @@
 package com.study.dispatchservice.handlers;
 
+import com.study.dispatchservice.exceptions.NotRetryableException;
+import com.study.dispatchservice.exceptions.RetryableException;
 import com.study.dispatchservice.messages.OrderCreatedEvent;
 import com.study.dispatchservice.services.DispatchService;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +34,17 @@ public class OrderCreatedHandler {
                 partition, key, payload);
         try {
             dispatchService.process(key, payload);
+        } catch (RetryableException e) {
+            log.warn("RetryableException occurred while processing key: {}, payload: {}, exception message: {}",
+                    key, payload, e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("OrderCreatedHandler Processing failure: ", e);
+            log.error("NotRetryableException occurred while processing key: {}, payload: {}, exception message: {}",
+                    key, payload, e.getMessage());
             if (e.getCause() instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
+            throw new NotRetryableException(e);
         }
     }
 }
